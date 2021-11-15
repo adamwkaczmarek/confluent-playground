@@ -20,12 +20,12 @@ public class Subscriber implements MqttCallback {
     private String host = "ssl://mqtt.hsl.fi:8883";
     private String clientId = "MQTT-Java-Example";
     private String topic = "/hfp/v2/journey/ongoing/vp/#";
-    private String kafka_topic = "vehicle-positions";
+    private String kafka_topic = "vehicle-positions-avro";
     private MqttClient client;
 
-    private KafkaProducer<String, String> producer;
+    private KafkaProducer<PositionKey, PositionValue> producer;
 
-    public Subscriber(KafkaProducer<String, String> producer) {
+    public Subscriber(KafkaProducer<PositionKey, PositionValue> producer) {
         this.producer = producer;
     }
 
@@ -34,12 +34,12 @@ public class Subscriber implements MqttCallback {
         conOpt.setCleanSession(true);
 
         final String uuid = UUID.randomUUID().toString().replace("-", "");
-    
+
         String clientId = this.clientId + "-" + uuid;
         this.client = new MqttClient(this.host, clientId, new MemoryPersistence());
         this.client.setCallback(this);
         this.client.connect(conOpt);
-        
+
         this.client.subscribe(this.topic, this.qos);
     }
 
@@ -52,10 +52,25 @@ public class Subscriber implements MqttCallback {
     }
 
     public void messageArrived(String topic, MqttMessage message) throws MqttException {
-        System.out.println(String.format("[%s] %s", topic, new String(message.getPayload())));
-        final String key = topic;
-        final String value = new String(message.getPayload());
-        final ProducerRecord<String, String> record = new ProducerRecord<>(this.kafka_topic, key, value);
-        producer.send(record);
+        try {
+            System.out.println(String.format("[%s] %s", topic, new String(message.getPayload())));
+            final PositionKey key = new PositionKey(topic);
+            final PositionValue value = getPositionValue(message.getPayload());
+            final ProducerRecord<PositionKey, PositionValue> record = new ProducerRecord<>(this.kafka_topic, key, value);
+            producer.send(record);
+        } catch (IOException e) {
+
+        }
+    }
+
+    private PositionValue getPositionValue(byte[] payload) throws IOException {
+        ObjectMapper mapper = new ObjectMapper();
+        String json = new String(payload);
+        VehiclePosition pos = mapper.readValue(json, VehiclePosition.class);
+        VehiclePosition.VehicleValues vv = pos.VP;
+        return new PositionValue(vv.desi, vv.dir, vv.oper, vv.veh, vv.tst,
+                vv.tsi, vv.spd, vv.hdg, vv.lat, vv.longitude, vv.acc, vv.dl,
+                vv.odo, vv.drst, vv.oday, vv.jrn, vv.line, vv.start, vv.loc,
+                vv.stop, vv.route, vv.occu, vv.seq);
     }
 }

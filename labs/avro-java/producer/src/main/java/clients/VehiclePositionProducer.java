@@ -16,18 +16,19 @@ public class VehiclePositionProducer {
         System.out.println("*** Starting VP Producer ***");
 
         Properties settings = new Properties();
-        settings.put("client.id", "vp-producer");
-        settings.put("bootstrap.servers", "kafka:9092");
-        settings.put("key.serializer", "org.apache.kafka.common.serialization.StringSerializer");
-        settings.put("value.serializer", "org.apache.kafka.common.serialization.StringSerializer");
+        settings.put(ProducerConfig.CLIENT_ID_CONFIG, "vp-producer-avro");
+        settings.put(ProducerConfig.BOOTSTRAP_SERVERS_CONFIG, "kafka:9092");
+        settings.put(ProducerConfig.KEY_SERIALIZER_CLASS_CONFIG, KafkaAvroSerializer.class);
+        settings.put(ProducerConfig.VALUE_SERIALIZER_CLASS_CONFIG, KafkaAvroSerializer.class);
+        settings.put(KafkaAvroSerializerConfig.SCHEMA_REGISTRY_URL_CONFIG, "http://schema-registry:8081");
 
-        final KafkaProducer<String, String> producer = new KafkaProducer<>(settings);
-        
+        final KafkaProducer<PositionKey, PositionValue> producer = new KafkaProducer<>(settings);
+
         Runtime.getRuntime().addShutdownHook(new Thread(() -> {
             System.out.println("### Stopping VP Producer ###");
             producer.close();
         }));
-        
+
         Subscriber subscriber = new Subscriber(producer);
         subscriber.start();
     }
